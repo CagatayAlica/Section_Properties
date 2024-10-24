@@ -240,17 +240,6 @@ class SectionProp_C:
                                [45, bb, aa - r, 1, 1, 1, 1, 0],
                                [46, bb, aa - cc, 1, 1, 1, 1, 0]])
 
-        self.elements = np.array([[0, 0, 1, self.t, 0],
-                                  [1, 1, 2, self.t, 0],
-                                  [2, 2, 3, self.t, 0],
-                                  [3, 3, 4, self.t, 0],
-                                  [4, 4, 5, self.t, 0],
-                                  [5, 5, 6, self.t, 0],
-                                  [6, 6, 7, self.t, 0],
-                                  [7, 7, 8, self.t, 0],
-                                  [8, 8, 9, self.t, 0],
-                                  [9, 9, 10, self.t, 0]
-                                  ])
         self.x = self.nodes[:, 1]
         self.y = self.nodes[:, 2]
         self.descp = f'Section : A: {self.A:.2f}, B: {self.B:.2f}, C: {self.C:.2f}, t: {self.t:.2f}'
@@ -928,5 +917,701 @@ class SectionProp_C:
         plt.show()
 
 
+class SectionProp_U:
+    def __init__(self, a: float, b: float, t: float, ro: float, f: float):
+        self.elements = None
+        self.nodes = None
+        self.y_inches = None
+        self.x_inches = None
+        self.descp = None
+        self.tcore = None
+        self.bb = None
+        self.aa = None
+        self.r = None
+        self.b = None
+        self.a = None
+        self.R = ro
+        self.t = t
+        self.B = b
+        self.A = a
+        self.xo = None
+        self.It = None
+        self.Cw = None
+        self.ysc = None
+        self.xsc = None
+        self.Iw = None
+        self.Ixy = None
+        self.Wy = None
+        self.Iy = None
+        self.Wx = None
+        self.Ix = None
+        self.zgy = None
+        self.zgx = None
+        self.Ar = None
+        self.E = 210000.0  # MPa
+        self.v = 0.3  # Poisson's ratio
+        # Reports
+        self.Report = None
+        self.ReportfPlot = f''
+
+        # Section parts
+        #         6       7
+        #       ┌────   ────┐    ↑
+        #       │           │ 8  │
+        #       │ 5              hc
+        #                        │
+        #       │                ↓
+        #     --│-------------------
+        #       │
+        #       │ 4
+        #       │           │ 1
+        #       └────   ────┘
+        #          3      2
+
+        self.secDivider = '============================================'
+        self.space3 = '   '
+        Rep = f'{self.secDivider}\nUSER INPUT\n{self.secDivider}\n'
+        Rep += f'==== Sections ====\n'
+        Rep += f'A = {self.A:.2f} mm, Web height.\n'
+        Rep += f'B = {self.B:.2f} mm, Flange width.\n'
+        Rep += f't = {self.t:.2f} mm, Nominal thickness.\n'
+        Rep += f'R = {self.R:.2f} mm, Inner radius.\n'
+        Rep += f'fy = {f:.2f} MPa, Steel yield stress.\n'
+        self.Report = Rep
+        self.unlippedCSection()
+        self.grossProp(self.x, self.y, self.t, self.r)
+        # Data for plotting
+        self.plot_C_section()
+
+        # Variables for axial compression
+        self.scomed = f
+        self.Axial_elementData2 = None
+        self.Axial_Aeff = None
+        self.Axial_ygct = None
+        self.Axial_ygc = None
+        self.Axial_xgc = None
+        self.Axial_dxgc = None
+        self.calcs_AxialCompression()
+        # Variables for bending about strong axis
+        self.BendStrong_elementData2 = None
+        self.BendStrong_ygct = None  # Top flange extreme fiber to neutral axis
+        self.BendStrong_ygc = None  # Bottom flange extreme fiber to neutral axis
+        self.BendStrong_Ixeff = None  # Moment of inertia
+        self.BendStrong_Wxeff = None  # Section modulus
+        self.calcs_BendingStrong()
+        # Variables for bending about strong axis
+        self.BendWeakLip_xgct = None
+        self.BendWeakLip_xgc = None
+        self.BendWeakLip_elementData2 = None
+        self.BendWeakLip_ygct = None  # Top flange extreme fiber to neutral axis
+        self.BendWeakLip_ygc = None  # Bottom flange extreme fiber to neutral axis
+        self.BendWeakLip_Iyeff = None  # Moment of inertia
+        self.BendWeakLip_Wyeff = None  # Section modulus
+        self.calcs_BendingWeakLip()
+        # Variables for bending about strong axis
+        self.BendWeakWeb_xgct = None
+        self.BendWeakWeb_xgc = None
+        self.BendWeakWeb_elementData2 = None
+        self.BendWeakWeb_ygct = None  # Top flange extreme fiber to neutral axis
+        self.BendWeakWeb_ygc = None  # Bottom flange extreme fiber to neutral axis
+        self.BendWeakWeb_Iyeff = None  # Moment of inertia
+        self.BendWeakWeb_Wyeff = None  # Section modulus
+        self.calcs_BendingWeakWeb()
+        self.plot_effC_section()
+
+    # ==================================================================================================================
+    # CALCULATING THE INTERNAL COORDINATES
+    # ==================================================================================================================
+    def unlippedCSection(self):
+        r = self.R + self.t / 2.0
+        # Centerline dimensions
+        aa = self.A - self.t
+        bb = self.B - self.t
+        tcore = self.t - 0.04
+        # Flat portions
+        a = aa - 2 * r
+        b = bb - 2 * r
+
+        self.a = a
+        self.b = b
+        self.r = r
+        self.aa = aa
+        self.bb = bb
+        self.tcore = tcore
+
+        def tranform(alfa, origin):
+            # Transformation matrix
+            p = origin
+            c, s = np.cos(math.radians(alfa)), np.sin(math.radians(alfa))
+            j = np.array([[c, s, 0],
+                          [-s, c, 0],
+                          [0, 0, 1]])
+            RotatedCorners = np.matmul(j, p)
+            return RotatedCorners.T
+
+        # Bottom left
+        origin2 = np.array([r, r, 0.0])
+        radius = np.array([0, r, 0.0])
+        start_ang = 180
+        p21 = tranform(start_ang + 10, radius)
+        p22 = tranform(start_ang + 20, radius)
+        p23 = tranform(start_ang + 30, radius)
+        p24 = tranform(start_ang + 40, radius)
+        p25 = tranform(start_ang + 50, radius)
+        p26 = tranform(start_ang + 60, radius)
+        p27 = tranform(start_ang + 70, radius)
+        p28 = tranform(start_ang + 80, radius)
+
+        # Top left
+        origin3 = np.array([r, aa - r, 0.0])
+        start_ang = 270
+        p31 = tranform(start_ang + 10, radius)
+        p32 = tranform(start_ang + 20, radius)
+        p33 = tranform(start_ang + 30, radius)
+        p34 = tranform(start_ang + 40, radius)
+        p35 = tranform(start_ang + 50, radius)
+        p36 = tranform(start_ang + 60, radius)
+        p37 = tranform(start_ang + 70, radius)
+        p38 = tranform(start_ang + 80, radius)
+
+        self.nodes = np.array([[1, bb - r, 0, 1, 1, 1, 1, 0],
+                               [2, r + b / 2.0, 0, 1, 1, 1, 1, 0],
+                               [3, r, 0, 1, 1, 1, 1, 0],
+                               [4, origin2[0] + p21[0], origin2[1] + p21[1], 1, 1, 1, 1, 0],
+                               [5, origin2[0] + p22[0], origin2[1] + p22[1], 1, 1, 1, 1, 0],
+                               [6, origin2[0] + p23[0], origin2[1] + p23[1], 1, 1, 1, 1, 0],
+                               [7, origin2[0] + p24[0], origin2[1] + p24[1], 1, 1, 1, 1, 0],
+                               [8, origin2[0] + p25[0], origin2[1] + p25[1], 1, 1, 1, 1, 0],
+                               [9, origin2[0] + p26[0], origin2[1] + p26[1], 1, 1, 1, 1, 0],
+                               [10, origin2[0] + p27[0], origin2[1] + p27[1], 1, 1, 1, 1, 0],
+                               [11, origin2[0] + p28[0], origin2[1] + p28[1], 1, 1, 1, 1, 0],
+                               [12, 0, r, 1, 1, 1, 1, 0],
+                               [13, 0, r + a * (1.0 / 4.0), 1, 1, 1, 1, 0],
+                               [14, 0, r + a * (2.0 / 4.0), 1, 1, 1, 1, 0],
+                               [15, 0, r + a * (3.0 / 4.0), 1, 1, 1, 1, 0],
+                               [16, 0, r + a, 1, 1, 1, 1, 0],
+                               [17, origin3[0] + p31[0], origin3[1] + p31[1], 1, 1, 1, 1, 0],
+                               [18, origin3[0] + p32[0], origin3[1] + p32[1], 1, 1, 1, 1, 0],
+                               [19, origin3[0] + p33[0], origin3[1] + p33[1], 1, 1, 1, 1, 0],
+                               [20, origin3[0] + p34[0], origin3[1] + p34[1], 1, 1, 1, 1, 0],
+                               [21, origin3[0] + p35[0], origin3[1] + p35[1], 1, 1, 1, 1, 0],
+                               [22, origin3[0] + p36[0], origin3[1] + p36[1], 1, 1, 1, 1, 0],
+                               [23, origin3[0] + p37[0], origin3[1] + p37[1], 1, 1, 1, 1, 0],
+                               [24, origin3[0] + p38[0], origin3[1] + p38[1], 1, 1, 1, 1, 0],
+                               [25, r, aa, 1, 1, 1, 1, 0],
+                               [26, r + b / 2.0, aa, 1, 1, 1, 1, 0],
+                               [27, bb - r, aa, 1, 1, 1, 1, 0]])
+
+        self.x = self.nodes[:, 1]
+        self.y = self.nodes[:, 2]
+        self.descp = f'Section : A: {self.A:.2f}, B: {self.B:.2f}, t: {self.t:.2f}'
+        self.x_inches = self.x * 25.4
+        self.y_inches = self.y * 25.4
+
+    # ==================================================================================================================
+    # GROSS SECTION FUNCTIONS
+    # ==================================================================================================================
+    def grossProp(self, x, y, t, r):
+        # Area of cross-section
+        da = np.zeros([len(x)])
+        ba = np.zeros([len(x)])
+        for i in range(1, len(da)):
+            da[i] = math.sqrt(math.pow(x[i - 1] - x[i], 2) + math.pow(y[i - 1] - y[i], 2)) * t
+            ba[i] = math.sqrt(math.pow(x[i - 1] - x[i], 2) + math.pow(y[i - 1] - y[i], 2))
+        Ar = np.sum(da)
+        Lt = np.sum(ba)
+        # Total rj.tetaj/90
+        Trj = 4 * 4 * r * (1.0 / 4.0)
+        delta = 0.43 * Trj / Lt
+        # First moment of area and coordinate for gravity centre
+        sx0 = np.zeros([len(x)])
+        sy0 = np.zeros([len(x)])
+        for i in range(1, len(sx0)):
+            sx0[i] = (y[i] + y[i - 1]) * da[i] / 2
+        zgy = np.sum(sx0) / Ar
+        for i in range(1, len(sy0)):
+            sy0[i] = (x[i] + x[i - 1]) * da[i] / 2
+        zgx = np.sum(sy0) / Ar
+
+        # Second moment of area
+        Ix0 = np.zeros([len(x)])
+        Iy0 = np.zeros([len(x)])
+        for i in range(1, len(Ix0)):
+            Ix0[i] = (math.pow(y[i], 2) + math.pow(y[i - 1], 2) + y[i] * y[i - 1]) * da[i] / 3
+        for i in range(1, len(Iy0)):
+            Iy0[i] = (math.pow(x[i], 2) + math.pow(x[i - 1], 2) + x[i] * x[i - 1]) * da[i] / 3
+        Ix = np.sum(Ix0) - Ar * math.pow(zgy, 2)
+        Iy = np.sum(Iy0) - Ar * math.pow(zgx, 2)
+
+        # Product moment of area
+        Ixy0 = np.zeros([len(x)])
+        for i in range(1, len(Ixy0)):
+            Ixy0[i] = (2 * x[i - 1] * y[i - 1] + 2 * x[i] * y[i] + x[i - 1] * y[i] + x[i] * y[i - 1]) * da[i] / 6
+        Ixy = np.sum(Ixy0) - (np.sum(sx0) * np.sum(sy0)) / Ar
+
+        # Principle axis
+        alfa = 0.5 * math.atan(2 * Ixy / (Iy - Ix))
+        Iksi = 0.5 * (Ix + Iy + math.sqrt(math.pow(Iy - Ix, 2) + 4 * math.pow(Ixy, 2)))
+        Ieta = 0.5 * (Ix + Iy - math.sqrt(math.pow(Iy - Ix, 2) + 4 * math.pow(Ixy, 2)))
+
+        # Sectoral coordinates
+        w = np.zeros([len(x)])
+        w0 = np.zeros([len(x)])
+        Iw = np.zeros([len(x)])
+        w0[0] = 0
+        for i in range(1, len(w0)):
+            w0[i] = x[i - 1] * y[i] - x[i] * y[i - 1]
+            w[i] = w[i - 1] + w0[i]
+            Iw[i] = (w[i - 1] + w[i]) * da[i] / 2
+        wmean = np.sum(Iw) / Ar
+
+        # Sectorial constants
+        Ixw0 = np.zeros([len(x)])
+        Iyw0 = np.zeros([len(x)])
+        Iww0 = np.zeros([len(x)])
+        for i in range(1, len(Ixw0)):
+            Ixw0[i] = (2 * x[i - 1] * w[i - 1] + 2 * x[i] * w[i] + x[i - 1] * w[i] + x[i] * w[i - 1]) * da[i] / 6
+            Iyw0[i] = (2 * y[i - 1] * w[i - 1] + 2 * y[i] * w[i] + y[i - 1] * w[i] + y[i] * w[i - 1]) * da[i] / 6
+            Iww0[i] = (math.pow(w[i], 2) + math.pow(w[i - 1], 2) + w[i] * w[i - 1]) * da[i] / 3
+        Ixw = np.sum(Ixw0) - np.sum(sy0) * np.sum(Iw) / Ar
+        Iyw = np.sum(Iyw0) - np.sum(sx0) * np.sum(Iw) / Ar
+        Iww = np.sum(Iww0) - math.pow(np.sum(Iw), 2) / Ar
+
+        # Shear centre
+        xsc = (Iyw * Iy - Ixw * Ixy) / (Ix * Iy - math.pow(Ixy, 2))
+        ysc = (-Ixw * Ix + Iyw * Ixy) / (Ix * Iy - math.pow(Ixy, 2))
+
+        # Warping constant
+        Cw = Iww + ysc * Ixw - xsc * Iyw
+
+        # Torsion constant
+        It0 = np.zeros([len(x)])
+        for i in range(1, len(It0)):
+            It0[i] = da[i] * math.pow(t, 2) / 3
+        It = np.sum(It0)
+
+        # Distance between centroid and shear centre
+        xo = abs(xsc) + zgx
+        # Distances from the boundaries
+        zgb = zgy
+        zgt = max(y) - zgb
+        zgl = zgx
+        zgr = max(x) - zgl
+        # Calculated data
+        propData = np.zeros([14])
+        propData[0] = Ar * (1 - delta)
+        propData[1] = max(zgb, zgt)
+        propData[2] = max(zgl, zgr)
+        propData[3] = Ix * (1 - 2 * delta)
+        propData[4] = Ix * (1 - 2 * delta) / max(zgb, zgt)
+        propData[5] = Iy * (1 - 2 * delta)
+        propData[6] = Iy * (1 - 2 * delta) / max(zgl, zgr)
+        propData[7] = Ixy
+        propData[8] = np.sum(Iw)
+        propData[9] = xsc
+        propData[10] = ysc
+        propData[11] = Cw * (1 - 4 * delta)
+        propData[12] = It * (1 - 2 * delta)
+        propData[13] = xo
+        Wx = Ix * (1 - 2 * delta) / max(zgb, zgt)
+        Wy = Iy * (1 - 2 * delta) / max(zgl, zgr)
+        # Define the attributes
+        self.Ar = Ar
+        self.zgx = zgx
+        self.zgy = zgy
+        self.Ix = Ix
+        self.Wx = Wx
+        self.Iy = Iy
+        self.Wy = Wy
+        self.Ixy = Ixy
+        self.Iw = Iw
+        self.xsc = xsc
+        self.ysc = ysc
+        self.Cw = Cw
+        self.It = It
+        self.xo = xo
+
+        # Data dictionary
+        self.prop = {
+            "Ag": [Ar, ' mm2', ', Area of cross-section'],
+            "zgx": [zgx, ' mm', ', Coordinate for gravity centre'],
+            "zgy": [zgy, ' mm', ', Coordinate for gravity centre'],
+            "Ix": [Ix, ' mm4', ', Second moment of area about strong axis'],
+            "Wx": [Ix * (1 - 2 * delta) / max(zgb, zgt), ' mm3', ', Section modulus about strong axis'],
+            "Iy": [Iy, ' mm4', ', Second moment of area about weak axis'],
+            "Wy": [Iy * (1 - 2 * delta) / max(zgl, zgr), ' mm3', ', Section modulus about weak axis'],
+            "Ixy": [Ixy, ' mm4', ', Product moment of area'],
+            "Iw": [np.sum(Iw), ' ', ' Sectorial constant'],
+            "xsc": [xsc, ' mm', ', Shear center on y axis'],
+            "ysc": [ysc, ' mm', ', Shear center on x axis'],
+            "Cw": [Cw, ' mm6', ', Warping constant'],
+            "It": [It, ' mm4', ', Torsional constant'],
+            "xo": [xo, ' mm', ', Distance between centroid and shear centre']
+        }
+        # print(self.prop)
+        self.Report += f'{self.secDivider}\nGROSS SECTION PROPERTIES (in mm)\n{self.secDivider}\n'
+        for key, value in self.prop.items():
+            self.Report += f'{self.space3}{key}: {value[0]:.4f}{value[1]}{value[2]}\n'
+            self.ReportfPlot += f'{key}: {value[0]:.2f}{value[1]}\n'
+
+        return self.prop, propData
+
+    # ==================================================================================================================
+    # EFFECTIVE SECTION FUNCTIONS
+    # ==================================================================================================================
+    # Section parts
+    #         4
+    #       ┌────    ↑
+    #       │        │
+    #       │ 3      hc
+    #                │
+    #       │        ↓
+    #     --│-------------------
+    #       │
+    #       │ 2
+    #       │
+    #       └────
+    #          1
+    def calcs_AxialCompression(self):
+        # Design Stress
+        scomed = self.scomed
+        # ==============================================================================================================
+        # Effective width of the top flange
+        # ==============================================================================================================
+        top_flg_stress_ratio = Sec4.stres_ratio(self.bb, 0.0)  # bwhole is 0 for uniform stress.
+        top_flg_ksigma = Sec4.Table4_2_ksigma(top_flg_stress_ratio, True)
+        top_flg_lamp = Sec4.lamp(self.bb, self.tcore, top_flg_ksigma, scomed, True)
+        top_flg_rho = Sec4.internal_element(top_flg_lamp, top_flg_stress_ratio)
+        top_flg_beff = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[2]
+        # ==============================================================================================================
+        # Effective width of the bot flange
+        # ==============================================================================================================
+        bot_flg_stress_ratio = Sec4.stres_ratio(self.bb, 0.0)  # bwhole is 0 for uniform stress.
+        bot_flg_ksigma = Sec4.Table4_2_ksigma(bot_flg_stress_ratio, True)
+        bot_flg_lamp = Sec4.lamp(self.bb, self.tcore, bot_flg_ksigma, scomed, True)
+        bot_flg_rho = Sec4.internal_element(bot_flg_lamp, bot_flg_stress_ratio)
+        bot_flg_beff = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[2]
+        # ==============================================================================================================
+        # Effective width of the web
+        # ==============================================================================================================
+        elementData1 = np.array(
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
+             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+        # Distance from tension (bottom) flange
+        ht = intprop.calcProps(elementData1)[1]
+        # Distance from compression (top) flange
+        hc = self.aa - ht
+        # Stress ratio
+        ff = 1.0  # uniform compression
+        web_ksigma = Sec4.Table4_1_ksigma(ff)
+        web_lamp = Sec4.lamp(self.aa, self.tcore, web_ksigma, scomed, True)
+        web_rho = Sec4.internal_element(web_lamp, ff)
+        web_beff = Sec4.Table4_1_beff(ff, self.aa, web_rho)[0]
+        web_be1 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[1]
+        web_be2 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[2]
+        h1 = web_be1
+        h2 = web_be2
+        # ==============================================================================================================
+        # Effective section properties
+        # ==============================================================================================================
+        # Create a matrix contains the element data from bottom lip to top lip
+        # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
+        self.Axial_elementData2 = np.array(
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
+             [2, 0.0, 0.0, 0.0, h1, self.t],
+             [3, 0.0, self.aa - h2, 0.0, self.aa, self.t],
+             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+
+        # Results
+        self.Axial_ygc = intprop.calcProps(self.Axial_elementData2)[1]
+        self.Axial_ygct = self.aa - intprop.calcProps(self.Axial_elementData2)[1]
+        self.Axial_xgc = intprop.calcProps(self.Axial_elementData2)[3]
+        self.Axial_Aeff = intprop.calcProps(self.Axial_elementData2)[0]
+        self.Axial_dxgc = self.Axial_xgc - self.zgx  # if it is + compression on web.
+        self.Report += (f'{self.secDivider}\nEFFECTIVE SECTION PROPERTIES (in mm)\n{self.secDivider}\n'
+                        f'==== Axial Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Aeff : {self.Axial_Aeff:.3f} mm², Effective cross section area\n'
+                        f'{self.space3}Δxgc : {self.Axial_dxgc:.3f} mm, drift on centre of gravity\n')
+
+    def calcs_BendingStrong(self):
+        # Design Stress
+        scomed = self.scomed
+        # ==============================================================================================================
+        # Effective width of the top flange
+        # ==============================================================================================================
+        top_flg_stress_ratio = Sec4.stres_ratio(self.bb, 0.0)  # bwhole is 0 for uniform stress.
+        top_flg_ksigma = Sec4.Table4_2_ksigma(top_flg_stress_ratio, True)
+        top_flg_lamp = Sec4.lamp(self.bb, self.tcore, top_flg_ksigma, scomed, True)
+        top_flg_rho = Sec4.internal_element(top_flg_lamp, top_flg_stress_ratio)
+        top_flg_beff = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[2]
+        # ==============================================================================================================
+        # Effective width of the bot flange
+        # ==============================================================================================================
+        bot_flg_stress_ratio = Sec4.stres_ratio(self.bb, 0.0)  # bwhole is 0 for uniform stress.
+        bot_flg_ksigma = Sec4.Table4_2_ksigma(bot_flg_stress_ratio, False)
+        bot_flg_lamp = Sec4.lamp(self.bb, self.tcore, bot_flg_ksigma, scomed, False)
+        bot_flg_rho = Sec4.internal_element(bot_flg_lamp, bot_flg_stress_ratio)
+        bot_flg_beff = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[2]
+        # ==============================================================================================================
+        # Effective width of the web
+        # ==============================================================================================================
+        elementData1 = np.array(
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
+             [2, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+        # Distance from tension (bottom) flange
+        ht = intprop.calcProps(elementData1)[1]
+        # Distance from compression (top) flange
+        hc = self.aa - ht
+        # Stress ratio
+        ff = (hc - self.aa) / hc
+        web_ksigma = Sec4.Table4_1_ksigma(ff)
+        web_lamp = Sec4.lamp(self.aa, self.tcore, web_ksigma, scomed, True)
+        web_rho = Sec4.internal_element(web_lamp, ff)
+        web_beff = Sec4.Table4_1_beff(ff, self.aa, web_rho)[0]
+        web_be1 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[1]
+        web_be2 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[2]
+        h1 = web_be1
+        h2 = self.aa - (hc - web_be2)
+        # ==============================================================================================================
+        # Effective section properties
+        # ==============================================================================================================
+        # Create a matrix contains the element data from bottom lip to top lip
+        # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
+        self.BendStrong_elementData2 = np.array(
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
+             [2, 0.0, 0.0, 0.0, h1, self.t],
+             [3, 0.0, h2, 0.0, self.aa, self.t],
+             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+
+        # Results
+        self.BendStrong_Ixeff = intprop.calcProps(self.BendStrong_elementData2)[2]
+        self.BendStrong_ygc = intprop.calcProps(self.BendStrong_elementData2)[1]
+        self.BendStrong_ygct = self.aa - intprop.calcProps(self.BendStrong_elementData2)[1]
+        self.BendStrong_Wxeff = intprop.calcProps(self.BendStrong_elementData2)[2] / (
+                self.aa - intprop.calcProps(self.BendStrong_elementData2)[1])
+
+        self.Report += (f'==== Bending About Strong Axis ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Ixeff : {self.BendStrong_Ixeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wxeff : {self.BendStrong_Wxeff :.3f} mm³, Effective section modulus\n')
+
+    def calcs_BendingWeakLip(self):
+        # Design Stress
+        scomed = self.scomed
+        # ==============================================================================================================
+        # Effective width of the top flange
+        # ==============================================================================================================
+        # Distance from tension (bottom) flange
+        top_bt = self.zgx
+        # Distance from compression (top) flange
+        top_bc = self.bb - top_bt
+        # Stress ratio
+        ff = (top_bc - self.bb) / top_bc
+        top_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
+        top_flange_lamp = Sec4.lamp(self.bb, self.tcore, top_flange_ksigma, scomed, True)
+        top_flg_rho = Sec4.internal_element(top_flange_lamp, ff)
+        top_flg_beff = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[0]
+        top_flg_be1 = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[1]
+        top_flg_be2 = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[2]
+        top_b1 = top_flg_be1
+        top_b2 = self.bb - (top_bc - top_flg_be2)
+        # ==============================================================================================================
+        # Effective width of the bot flange
+        # ==============================================================================================================
+        # Distance from tension (bottom) flange
+        bot_bt = self.zgx
+        # Distance from compression (top) flange
+        bot_bc = self.bb - bot_bt
+        # Stress ratio
+        ff = (bot_bc - self.bb) / bot_bc
+        bot_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
+        bot_flange_lamp = Sec4.lamp(self.bb, self.tcore, bot_flange_ksigma, scomed, True)
+        bot_flg_rho = Sec4.internal_element(bot_flange_lamp, ff)
+        bot_flg_beff = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[0]
+        bot_flg_be1 = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[1]
+        bot_flg_be2 = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[2]
+        bot_b1 = top_flg_be1
+        bot_b2 = self.bb - (bot_bc - top_flg_be2)
+        # ==============================================================================================================
+        # Effective width of the web
+        # ==============================================================================================================
+        # Web is fully effective under tension
+        ff = 1.0
+        web_ksigma = Sec4.Table4_1_ksigma(ff)
+        web_lamp = Sec4.lamp(self.aa, self.tcore, web_ksigma, scomed, False)
+        web_rho = Sec4.internal_element(web_lamp, ff)
+        web_beff = Sec4.Table4_1_beff(ff, self.aa, web_rho)[0]
+        web_be1 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[1]
+        web_be2 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[2]
+        h1 = web_be1
+        h2 = web_be1
+        # ==============================================================================================================
+        # Effective section properties
+        # ==============================================================================================================
+        # Create a matrix contains the element data from bottom lip to top lip
+        # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
+        self.BendWeakLip_elementData2 = np.array(
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
+             [2, 0.0, 0.0, 0.0, h1, self.t],
+             [3, 0.0, h2, 0.0, self.aa, self.t],
+             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+
+        # Results
+        self.BendWeakLip_Iyeff = intprop.calcProps(self.BendWeakLip_elementData2)[4]
+        self.BendWeakLip_xgc = intprop.calcProps(self.BendWeakLip_elementData2)[3]
+        self.BendWeakLip_xgct = self.bb - intprop.calcProps(self.BendWeakLip_elementData2)[3]
+        self.BendWeakLip_Wyeff = intprop.calcProps(self.BendWeakLip_elementData2)[4] / (
+            max(self.BendWeakLip_xgc, self.BendWeakLip_xgct))
+
+        self.Report += (f'==== Bending About Weak Axis, Lips Are Under Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Iyeff : {self.BendWeakLip_Iyeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wyeff : {self.BendWeakLip_Wyeff :.3f} mm³, Effective section modulus\n')
+
+    def calcs_BendingWeakWeb(self):
+        # Design Stress
+        scomed = self.scomed
+        # ==============================================================================================================
+        # Effective width of the top flange
+        # ==============================================================================================================
+        # Only tension part is taken into account for the flange (bb-zgx)
+        top_flg_be1 = 0.0
+        top_flg_be2 = (self.bb - self.zgx)
+        # ==============================================================================================================
+        # Effective width of the bot flange
+        # ==============================================================================================================
+        # Only tension part is taken into account for the flange (bb-zgx)
+        bot_flg_be1 = 0.0
+        bot_flg_be2 = (self.bb - self.zgx)
+        # ==============================================================================================================
+        # Effective width of the web
+        # ==============================================================================================================
+        # Stress ratio / Uniform compression on web
+        ff = 1.0
+        web_ksigma = Sec4.Table4_1_ksigma(ff)
+        web_lamp = Sec4.lamp(self.aa, self.tcore, web_ksigma, scomed, True)
+        web_rho = Sec4.internal_element(web_lamp, ff)
+        web_beff = Sec4.Table4_1_beff(ff, self.aa, web_rho)[0]
+        web_be1 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[1]
+        web_be2 = Sec4.Table4_1_beff(ff, self.aa, web_rho)[2]
+        h1 = web_be1
+        h2 = web_be1
+        # ==============================================================================================================
+        # Effective section properties
+        # ==============================================================================================================
+        # Create a matrix contains the element data from bottom lip to top lip
+        # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
+        self.BendWeakWeb_elementData2 = np.array(
+            [[1, bot_flg_be2, 0.0, 0.0, 0.0, self.tcore],
+             [2, 0.0, 0.0, 0.0, h1, self.tcore],
+             [3, 0.0, h2, 0.0, self.aa, self.tcore],
+             [4, top_flg_be2, self.aa, 0.0, self.aa, self.tcore]])
+
+        # Results
+        self.BendWeakWeb_Iyeff = intprop.calcProps(self.BendWeakWeb_elementData2)[4]
+        self.BendWeakWeb_xgc = intprop.calcProps(self.BendWeakWeb_elementData2)[3]
+        self.BendWeakWeb_xgct = self.bb - intprop.calcProps(self.BendWeakWeb_elementData2)[3]
+        self.BendWeakWeb_Wyeff = intprop.calcProps(self.BendWeakWeb_elementData2)[4] / (
+            max(self.BendWeakWeb_xgc, self.BendWeakWeb_xgct))
+
+        self.Report += (f'==== Bending About Weak Axis, Web Is Under Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Iyeff : {self.BendWeakWeb_Iyeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wyeff : {self.BendWeakWeb_Wyeff :.3f} mm³, Effective section modulus\n')
+
+        # Print Report
+        print(self.Report)
+
+    # ==================================================================================================================
+    # PLOTTER FUNCTIONS
+    # ==================================================================================================================
+    def plot_effC_section(self):
+        figure, axis = plt.subplots(2, 2)
+        figure.suptitle("Effective Section | EUROCODE 1993")
+        for i in self.Axial_elementData2:
+            x = [i[1], i[3]]
+            y = [i[2], i[4]]
+            t = i[5]
+            axis[0, 0].plot(x, y, linewidth=t * 2)
+        axis[0, 0].set_title('Axial Compression')
+        axis[0, 0].grid(color='green', linestyle='--', linewidth=0.5)
+        axis[0, 0].plot(self.Axial_xgc, self.A / 2, color='gray', linestyle='solid', marker=6, markerfacecolor='blue',
+                        markersize=9)
+        axis[0, 0].text(self.Axial_xgc, self.A / 2 * 0.9, 'Effective Gravity Centre', style='italic',
+                        bbox={'facecolor': 'blue', 'alpha': 0.5, 'pad': 1}, verticalalignment='top')
+        axis[0, 0].plot(self.zgx, self.A / 2, color='gray', linestyle='solid', marker=7, markerfacecolor='red',
+                        markersize=9)
+        axis[0, 0].text(self.zgx, self.A / 2 * 1.2, 'Gross Gravity Centre', style='italic',
+                        bbox={'facecolor': 'red', 'alpha': 0.5, 'pad': 1}, verticalalignment='top')
+        axis[0, 0].text(self.zgx * 1.3, self.A / 2, f'eny : {self.Axial_dxgc:.3f} mm', style='italic',
+                        bbox={'facecolor': 'green', 'alpha': 0.5, 'pad': 1}, verticalalignment='center')
+        axis[0, 0].axis('equal')
+        text_axial = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                      f'Aeff : {self.Axial_Aeff:.3f} mm²,\n'
+                      f'Δxgc : {self.Axial_dxgc:.3f} mm.\n')
+        axis[0, 0].annotate(text_axial, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
+
+        for i in self.BendStrong_elementData2:
+            x = [i[1], i[3]]
+            y = [i[2], i[4]]
+            t = i[5]
+            axis[0, 1].plot(x, y, linewidth=t * 2)
+        axis[0, 1].set_title('Bending About Strong Axis')
+        axis[0, 1].grid(color='green', linestyle='--', linewidth=0.5)
+        axis[0, 1].axis('equal')
+        text_bStr = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Ixeff : {self.BendStrong_Ixeff:.3f} mm⁴,\n'
+                     f'Wxeff : {self.BendStrong_Wxeff :.3f} mm³.\n')
+        axis[0, 1].annotate(text_bStr, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
+
+        for i in self.BendWeakLip_elementData2:
+            x = [i[1], i[3]]
+            y = [i[2], i[4]]
+            t = i[5]
+            axis[1, 0].plot(x, y, linewidth=t * 2)
+        axis[1, 0].set_title(f'Bending About Weak Axis\nLips are Under Compression')
+        axis[1, 0].grid(color='green', linestyle='--', linewidth=0.5)
+        axis[1, 0].axis('equal')
+        text_bWeL = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Iyeff : {self.BendWeakLip_Iyeff:.3f} mm⁴,\n'
+                     f'Wyeff : {self.BendWeakLip_Wyeff:.3f} mm³.\n')
+        axis[1, 0].annotate(text_bWeL, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
+
+        for i in self.BendWeakWeb_elementData2:
+            x = [i[1], i[3]]
+            y = [i[2], i[4]]
+            t = i[5]
+            axis[1, 1].plot(x, y, linewidth=t * 2)
+        axis[1, 1].set_title(f'Bending About Weak Axis\nWeb is Under Compression')
+        axis[1, 1].grid(color='green', linestyle='--', linewidth=0.5)
+        axis[1, 1].axis('equal')
+        text_bWeW = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Iyeff : {self.BendWeakWeb_Iyeff:.3f} mm⁴,\n'
+                     f'Wyeff : {self.BendWeakWeb_Wyeff:.3f} mm³.\n')
+        axis[1, 1].annotate(text_bWeW, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
+        plt.show()
+
+    def plot_C_section(self):
+        t = self.x
+        s = self.y
+        fig, ax = plt.subplots()
+        ax.plot(t, s)
+        ax.set(xlabel='mm', ylabel='mm', title=self.descp)
+        ax.grid()
+        plt.axis('equal')
+        ax.annotate(self.ReportfPlot, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
+        plt.show()
+
+
 # Calculating the section properties
-section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+#section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+U_sec= SectionProp_U(90.0,50.0,1.0,1.6,350.0)
