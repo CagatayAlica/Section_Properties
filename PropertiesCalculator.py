@@ -6,15 +6,13 @@ import EffectiveSection.EN1993_1_3.Sec5_5_3 as Sec553
 import EffectiveSection.Modes.IntCalcProp as intprop
 
 
-class GrossProp:
+class SectionProp:
     def __init__(self, a: float, b: float, c: float, t: float, ro: float, f: float):
         self.elements = None
         self.nodes = None
         self.y_inches = None
         self.x_inches = None
         self.descp = None
-        self.y = None
-        self.x = None
         self.tcore = None
         self.cc = None
         self.bb = None
@@ -44,6 +42,9 @@ class GrossProp:
         self.Ar = None
         self.E = 210000.0  # MPa
         self.v = 0.3  # Poisson's ratio
+        # Reports
+        self.Report = None
+        self.ReportfPlot = f''
 
         # Section parts
         #         6       7
@@ -59,17 +60,21 @@ class GrossProp:
         #       └────   ────┘
         #          3      2
 
-        secDivider = '============================================'
-        Rep = f'{secDivider}\nUSER INPUT\n{secDivider}\n'
+        self.secDivider = '============================================'
+        self.space3 = '   '
+        Rep = f'{self.secDivider}\nUSER INPUT\n{self.secDivider}\n'
         Rep += f'==== Sections ====\n'
-        Rep += f'A = {self.A:.2f} mm\n'
-        Rep += f'B = {self.B:.2f} mm\n'
-        Rep += f'C = {self.C:.2f} mm\n'
-        Rep += f't = {self.t:.2f} mm\n'
-        Rep += f'R = {self.R:.2f} mm\n'
-        print(Rep)
+        Rep += f'A = {self.A:.2f} mm, Web height.\n'
+        Rep += f'B = {self.B:.2f} mm, Flange width.\n'
+        Rep += f'C = {self.C:.2f} mm, Lip length.\n'
+        Rep += f't = {self.t:.2f} mm, Nominal thickness.\n'
+        Rep += f'R = {self.R:.2f} mm, Inner radius.\n'
+        Rep += f'fy = {f:.2f} MPa, Steel yield stress.\n'
+        self.Report = Rep
         self.lippedCSection()
         self.grossProp(self.x, self.y, self.t, self.r)
+        # Data for plotting
+        self.plot_C_section()
 
         # Variables for axial compression
         self.scomed = f
@@ -80,7 +85,6 @@ class GrossProp:
         self.Axial_xgc = None
         self.Axial_dxgc = None
         self.calcs_AxialCompression()
-        print(self.Axial_Aeff)
         # Variables for bending about strong axis
         self.BendStrong_elementData2 = None
         self.BendStrong_ygct = None  # Top flange extreme fiber to neutral axis
@@ -108,6 +112,9 @@ class GrossProp:
         self.calcs_BendingWeakWeb()
         self.plot_effC_section()
 
+    # ==================================================================================================================
+    # CALCULATING THE INTERNAL COORDINATES
+    # ==================================================================================================================
     def lippedCSection(self):
         r = self.R + self.t / 2.0
         # Centerline dimensions
@@ -249,9 +256,10 @@ class GrossProp:
         self.descp = f'Section : A: {self.A:.2f}, B: {self.B:.2f}, C: {self.C:.2f}, t: {self.t:.2f}'
         self.x_inches = self.x * 25.4
         self.y_inches = self.y * 25.4
-        # Data for plotting
-        self.plot_C_section()
 
+    # ==================================================================================================================
+    # GROSS SECTION FUNCTIONS
+    # ==================================================================================================================
     def grossProp(self, x, y, t, r):
         # Area of cross-section
         da = np.zeros([len(x)])
@@ -374,29 +382,32 @@ class GrossProp:
 
         # Data dictionary
         self.prop = {
-            "Ag": [Ar, ' mm2, Area of cross-section'],
-            "zgx": [zgx, ' mm, Coordinate for gravity centre'],
-            "zgy": [zgy, ' mm, Coordinate for gravity centre'],
-            "Ix": [Ix, ' mm4, Second moment of area about strong axis'],
-            "Wx": [Ix * (1 - 2 * delta) / max(zgb, zgt), ' mm3, Section modulus about strong axis'],
-            "Iy": [Iy, ' mm4, Second moment of area about weak axis'],
-            "Wy": [Iy * (1 - 2 * delta) / max(zgl, zgr), ' mm3, Section modulus about weak axis'],
-            "Ixy": [Ixy, ' mm4, Product moment of area'],
-            "Iw": [np.sum(Iw), ' Sectorial constant'],
-            "xsc": [xsc, ' mm, Shear center on y axis'],
-            "ysc": [ysc, ' mm, Shear center on x axis'],
-            "Cw": [Cw, ' mm6, Warping constant'],
-            "It": [It, ' mm4, Torsional constant'],
-            "xo": [xo, ' mm, Distance between centroid and shear centre']
+            "Ag": [Ar, ' mm2', ', Area of cross-section'],
+            "zgx": [zgx, ' mm', ', Coordinate for gravity centre'],
+            "zgy": [zgy, ' mm', ', Coordinate for gravity centre'],
+            "Ix": [Ix, ' mm4', ', Second moment of area about strong axis'],
+            "Wx": [Ix * (1 - 2 * delta) / max(zgb, zgt), ' mm3', ', Section modulus about strong axis'],
+            "Iy": [Iy, ' mm4', ', Second moment of area about weak axis'],
+            "Wy": [Iy * (1 - 2 * delta) / max(zgl, zgr), ' mm3', ', Section modulus about weak axis'],
+            "Ixy": [Ixy, ' mm4', ', Product moment of area'],
+            "Iw": [np.sum(Iw), ' ', ' Sectorial constant'],
+            "xsc": [xsc, ' mm', ', Shear center on y axis'],
+            "ysc": [ysc, ' mm', ', Shear center on x axis'],
+            "Cw": [Cw, ' mm6', ', Warping constant'],
+            "It": [It, ' mm4', ', Torsional constant'],
+            "xo": [xo, ' mm', ', Distance between centroid and shear centre']
         }
         # print(self.prop)
-        secDivider = '============================================'
-        print(f'{secDivider}\nGROSS SECTION PROPERTIES (in mm)\n{secDivider}')
+        self.Report += f'{self.secDivider}\nGROSS SECTION PROPERTIES (in mm)\n{self.secDivider}\n'
         for key, value in self.prop.items():
-            print(f'{key}: {value[0]:.4f}{value[1]}')
+            self.Report += f'{self.space3}{key}: {value[0]:.4f}{value[1]}{value[2]}\n'
+            self.ReportfPlot += f'{key}: {value[0]:.2f}{value[1]}\n'
 
         return self.prop, propData
 
+    # ==================================================================================================================
+    # EFFECTIVE SECTION FUNCTIONS
+    # ==================================================================================================================
     def calcs_AxialCompression(self):
         # Design Stress
         scomed = self.scomed
@@ -507,6 +518,11 @@ class GrossProp:
         self.Axial_xgc = intprop.calcProps(self.Axial_elementData2)[3]
         self.Axial_Aeff = intprop.calcProps(self.Axial_elementData2)[0]
         self.Axial_dxgc = self.Axial_xgc - self.zgx  # if it is + compression on web.
+        self.Report += (f'{self.secDivider}\nEFFECTIVE SECTION PROPERTIES (in mm)\n{self.secDivider}\n'
+                        f'==== Axial Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Aeff : {self.Axial_Aeff:.3f} mm², Effective cross section area\n'
+                        f'{self.space3}Δxgc : {self.Axial_dxgc:.3f} mm, drift on centre of gravity\n')
 
     def calcs_BendingStrong(self):
         # Design Stress
@@ -619,6 +635,11 @@ class GrossProp:
         self.BendStrong_Wxeff = intprop.calcProps(self.BendStrong_elementData2)[2] / (
                 self.aa - intprop.calcProps(self.BendStrong_elementData2)[1])
 
+        self.Report += (f'==== Bending About Strong Axis ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Ixeff : {self.BendStrong_Ixeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wxeff : {self.BendStrong_Wxeff :.3f} mm³, Effective section modulus\n')
+
     def calcs_BendingWeakLip(self):
         # Design Stress
         scomed = self.scomed
@@ -719,6 +740,11 @@ class GrossProp:
         self.BendWeakLip_Wyeff = intprop.calcProps(self.BendWeakLip_elementData2)[4] / (
             max(self.BendWeakLip_xgc, self.BendWeakLip_xgct))
 
+        self.Report += (f'==== Bending About Weak Axis, Lips Are Under Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Iyeff : {self.BendWeakLip_Iyeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wyeff : {self.BendWeakLip_Wyeff :.3f} mm³, Effective section modulus\n')
+
     def calcs_BendingWeakWeb(self):
         # Design Stress
         scomed = self.scomed
@@ -813,9 +839,20 @@ class GrossProp:
         self.BendWeakWeb_Wyeff = intprop.calcProps(self.BendWeakWeb_elementData2)[4] / (
             max(self.BendWeakWeb_xgc, self.BendWeakWeb_xgct))
 
+        self.Report += (f'==== Bending About Weak Axis, Web Is Under Compression ====\n'
+                        f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
+                        f'{self.space3}Iyeff : {self.BendWeakWeb_Iyeff:.3f} mm⁴, Effective second moment area\n'
+                        f'{self.space3}Wyeff : {self.BendWeakWeb_Wyeff :.3f} mm³, Effective section modulus\n')
+
+        # Print Report
+        print(self.Report)
+
+    # ==================================================================================================================
+    # PLOTTER FUNCTIONS
+    # ==================================================================================================================
     def plot_effC_section(self):
         figure, axis = plt.subplots(2, 2)
-        figure.suptitle("Effective Section")
+        figure.suptitle("Effective Section | EUROCODE 1993")
         for i in self.Axial_elementData2:
             x = [i[1], i[3]]
             y = [i[2], i[4]]
@@ -831,9 +868,13 @@ class GrossProp:
                         markersize=9)
         axis[0, 0].text(self.zgx, self.A / 2 * 1.2, 'Gross Gravity Centre', style='italic',
                         bbox={'facecolor': 'red', 'alpha': 0.5, 'pad': 1}, verticalalignment='top')
-        axis[0, 0].text(self.zgx * 1.3, self.A / 2, f'eny : {self.Axial_dxgc:.2f} mm', style='italic',
+        axis[0, 0].text(self.zgx * 1.3, self.A / 2, f'eny : {self.Axial_dxgc:.3f} mm', style='italic',
                         bbox={'facecolor': 'green', 'alpha': 0.5, 'pad': 1}, verticalalignment='center')
         axis[0, 0].axis('equal')
+        text_axial = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                      f'Aeff : {self.Axial_Aeff:.3f} mm²,\n'
+                      f'Δxgc : {self.Axial_dxgc:.3f} mm.\n')
+        axis[0, 0].annotate(text_axial, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
 
         for i in self.BendStrong_elementData2:
             x = [i[1], i[3]]
@@ -843,6 +884,10 @@ class GrossProp:
         axis[0, 1].set_title('Bending About Strong Axis')
         axis[0, 1].grid(color='green', linestyle='--', linewidth=0.5)
         axis[0, 1].axis('equal')
+        text_bStr = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Ixeff : {self.BendStrong_Ixeff:.3f} mm⁴,\n'
+                     f'Wxeff : {self.BendStrong_Wxeff :.3f} mm³.\n')
+        axis[0, 1].annotate(text_bStr, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
 
         for i in self.BendWeakLip_elementData2:
             x = [i[1], i[3]]
@@ -852,6 +897,10 @@ class GrossProp:
         axis[1, 0].set_title(f'Bending About Weak Axis\nLips are Under Compression')
         axis[1, 0].grid(color='green', linestyle='--', linewidth=0.5)
         axis[1, 0].axis('equal')
+        text_bWeL = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Iyeff : {self.BendWeakLip_Iyeff:.3f} mm⁴,\n'
+                     f'Wyeff : {self.BendWeakLip_Wyeff:.3f} mm³.\n')
+        axis[1, 0].annotate(text_bWeL, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
 
         for i in self.BendWeakWeb_elementData2:
             x = [i[1], i[3]]
@@ -861,6 +910,10 @@ class GrossProp:
         axis[1, 1].set_title(f'Bending About Weak Axis\nWeb is Under Compression')
         axis[1, 1].grid(color='green', linestyle='--', linewidth=0.5)
         axis[1, 1].axis('equal')
+        text_bWeW = (f'σComEd : {self.scomed:.2f} MPa,\n'
+                     f'Iyeff : {self.BendWeakWeb_Iyeff:.3f} mm⁴,\n'
+                     f'Wyeff : {self.BendWeakWeb_Wyeff:.3f} mm³.\n')
+        axis[1, 1].annotate(text_bWeW, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
         plt.show()
 
     def plot_C_section(self):
@@ -871,11 +924,9 @@ class GrossProp:
         ax.set(xlabel='mm', ylabel='mm', title=self.descp)
         ax.grid()
         plt.axis('equal')
+        ax.annotate(self.ReportfPlot, (0.05, 0.9), xycoords='axes fraction', va='top', ha='left')
         plt.show()
 
 
-
-
-
-# Calculating the gross section properties
-section = GrossProp(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+# Calculating the section properties
+section = SectionProp(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)

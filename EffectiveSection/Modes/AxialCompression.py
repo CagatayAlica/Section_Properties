@@ -1,7 +1,7 @@
 import EffectiveSection.EN1993_1_5.Sec4 as Sec4
 import EffectiveSection.EN1993_1_3.Sec5_5_3 as Sec553
 import EffectiveSection.Modes.IntCalcProp as intprop
-import Definitions.Definitions as defin
+import PropertiesCalculator as defin
 import numpy as np
 import matplotlib.pyplot as plt
 
