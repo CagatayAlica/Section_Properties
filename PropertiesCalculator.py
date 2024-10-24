@@ -6,7 +6,7 @@ import EffectiveSection.EN1993_1_3.Sec5_5_3 as Sec553
 import EffectiveSection.Modes.IntCalcProp as intprop
 
 
-class SectionProp:
+class SectionProp_C:
     def __init__(self, a: float, b: float, c: float, t: float, ro: float, f: float):
         self.elements = None
         self.nodes = None
@@ -929,4 +929,4 @@ class SectionProp:
 
 
 # Calculating the section properties
-section = SectionProp(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
