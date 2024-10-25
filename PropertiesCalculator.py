@@ -954,20 +954,6 @@ class SectionProp_U:
         self.Report = None
         self.ReportfPlot = f''
 
-        # Section parts
-        #         6       7
-        #       ┌────   ────┐    ↑
-        #       │           │ 8  │
-        #       │ 5              hc
-        #                        │
-        #       │                ↓
-        #     --│-------------------
-        #       │
-        #       │ 4
-        #       │           │ 1
-        #       └────   ────┘
-        #          3      2
-
         self.secDivider = '============================================'
         self.space3 = '   '
         Rep = f'{self.secDivider}\nUSER INPUT\n{self.secDivider}\n'
@@ -1282,9 +1268,9 @@ class SectionProp_U:
         top_flg_ksigma = Sec4.Table4_2_ksigma(top_flg_stress_ratio, True)
         top_flg_lamp = Sec4.lamp(self.bb, self.tcore, top_flg_ksigma, scomed, True)
         top_flg_rho = Sec4.internal_element(top_flg_lamp, top_flg_stress_ratio)
-        top_flg_beff = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[0]
-        top_flg_be1 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[1]
-        top_flg_be2 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[2]
+        top_flg_beff = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[2]
         # ==============================================================================================================
         # Effective width of the bot flange
         # ==============================================================================================================
@@ -1292,9 +1278,9 @@ class SectionProp_U:
         bot_flg_ksigma = Sec4.Table4_2_ksigma(bot_flg_stress_ratio, True)
         bot_flg_lamp = Sec4.lamp(self.bb, self.tcore, bot_flg_ksigma, scomed, True)
         bot_flg_rho = Sec4.internal_element(bot_flg_lamp, bot_flg_stress_ratio)
-        bot_flg_beff = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[0]
-        bot_flg_be1 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[1]
-        bot_flg_be2 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[2]
+        bot_flg_beff = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[2]
         # ==============================================================================================================
         # Effective width of the web
         # ==============================================================================================================
@@ -1348,9 +1334,9 @@ class SectionProp_U:
         top_flg_ksigma = Sec4.Table4_2_ksigma(top_flg_stress_ratio, True)
         top_flg_lamp = Sec4.lamp(self.bb, self.tcore, top_flg_ksigma, scomed, True)
         top_flg_rho = Sec4.internal_element(top_flg_lamp, top_flg_stress_ratio)
-        top_flg_beff = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[0]
-        top_flg_be1 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[1]
-        top_flg_be2 = Sec4.Table4_2_beff(top_flg_stress_ratio, self.bb, top_flg_rho)[2]
+        top_flg_beff = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(self.bb, top_flg_rho, top_flg_stress_ratio)[2]
         # ==============================================================================================================
         # Effective width of the bot flange
         # ==============================================================================================================
@@ -1358,9 +1344,9 @@ class SectionProp_U:
         bot_flg_ksigma = Sec4.Table4_2_ksigma(bot_flg_stress_ratio, False)
         bot_flg_lamp = Sec4.lamp(self.bb, self.tcore, bot_flg_ksigma, scomed, False)
         bot_flg_rho = Sec4.internal_element(bot_flg_lamp, bot_flg_stress_ratio)
-        bot_flg_beff = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[0]
-        bot_flg_be1 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[1]
-        bot_flg_be2 = Sec4.Table4_2_beff(bot_flg_stress_ratio, self.bb, bot_flg_rho)[2]
+        bot_flg_beff = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, bot_flg_stress_ratio)[2]
         # ==============================================================================================================
         # Effective width of the web
         # ==============================================================================================================
@@ -1420,9 +1406,9 @@ class SectionProp_U:
         top_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
         top_flange_lamp = Sec4.lamp(self.bb, self.tcore, top_flange_ksigma, scomed, True)
         top_flg_rho = Sec4.internal_element(top_flange_lamp, ff)
-        top_flg_beff = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[0]
-        top_flg_be1 = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[1]
-        top_flg_be2 = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[2]
+        top_flg_beff = Sec4.Table4_2_beff(self.bb, top_flg_rho, ff)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(self.bb, top_flg_rho, ff)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(self.bb, top_flg_rho, ff)[2]
         top_b1 = top_bt
         top_b2 = top_flg_beff
         # ==============================================================================================================
@@ -1437,9 +1423,9 @@ class SectionProp_U:
         bot_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
         bot_flange_lamp = Sec4.lamp(self.bb, self.tcore, bot_flange_ksigma, scomed, True)
         bot_flg_rho = Sec4.internal_element(bot_flange_lamp, ff)
-        bot_flg_beff = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[0]
-        bot_flg_be1 = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[1]
-        bot_flg_be2 = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[2]
+        bot_flg_beff = Sec4.Table4_2_beff(self.bb, bot_flg_rho, ff)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, ff)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(self.bb, bot_flg_rho, ff)[2]
         bot_b1 = bot_bt
         bot_b2 = bot_flg_beff
         # ==============================================================================================================
@@ -1461,12 +1447,12 @@ class SectionProp_U:
         # Create a matrix contains the element data from bottom lip to top lip
         # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
         self.BendWeakLip_elementData2 = np.array(
-            [[1, (bot_b1+bot_b2), 0.0, bot_b1, 0.0, self.t],
+            [[1, (bot_b1 + bot_b2), 0.0, bot_b1, 0.0, self.t],
              [2, bot_b1, 0.0, 0.0, 0.0, self.tcore],
              [3, 0.0, 0.0, 0.0, h1, self.tcore],
-             [3, 0.0, self.aa-h2, 0.0, self.aa, self.tcore],
+             [3, 0.0, self.aa - h2, 0.0, self.aa, self.tcore],
              [4, 0.0, self.aa, top_b1, self.aa, self.tcore],
-             [5, top_b1, self.aa, (top_b1+top_b2),self.aa, self.tcore]])
+             [5, top_b1, self.aa, (top_b1 + top_b2), self.aa, self.tcore]])
 
         # Results
         self.BendWeakLip_Iyeff = intprop.calcProps(self.BendWeakLip_elementData2)[4]
@@ -1616,5 +1602,5 @@ class SectionProp_U:
 
 
 # Calculating the section properties
-# section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+C_section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
 U_sec = SectionProp_U(200.0, 50.0, 1.2, 1.6, 350.0)

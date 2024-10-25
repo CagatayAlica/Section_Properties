@@ -121,7 +121,7 @@ def Table4_1_beff(ff: float, b: float, rho: float):
     return beff, be1, be2
 
 
-def Table4_2_beff(ff: float, b: float, rho: float):
+def Table4_2_beff(b: float, rho: float, ff: float):
     """
     EN1993-1-5 Table 4.2
     :param ff: stress ratio
