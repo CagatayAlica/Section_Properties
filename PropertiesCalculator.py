@@ -1602,5 +1602,5 @@ class SectionProp_U:
 
 
 # Calculating the section properties
-C_section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+C_section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 220.0)
 U_sec = SectionProp_U(200.0, 50.0, 1.2, 1.6, 350.0)
