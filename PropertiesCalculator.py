@@ -1387,10 +1387,10 @@ class SectionProp_U:
         # Create a matrix contains the element data from bottom lip to top lip
         # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
         self.BendStrong_elementData2 = np.array(
-            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
-             [2, 0.0, 0.0, 0.0, h1, self.t],
-             [3, 0.0, h2, 0.0, self.aa, self.t],
-             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.tcore],
+             [2, 0.0, 0.0, 0.0, h2, self.tcore],
+             [3, 0.0, self.aa - h1, 0.0, self.aa, self.tcore],
+             [4, top_flg_beff, self.aa, 0.0, self.aa, self.tcore]])
 
         # Results
         self.BendStrong_Ixeff = intprop.calcProps(self.BendStrong_elementData2)[2]
@@ -1402,7 +1402,8 @@ class SectionProp_U:
         self.Report += (f'==== Bending About Strong Axis ====\n'
                         f'{self.space3}σComEd : {self.scomed:.2f} MPa, Stress level\n'
                         f'{self.space3}Ixeff : {self.BendStrong_Ixeff:.3f} mm⁴, Effective second moment area\n'
-                        f'{self.space3}Wxeff : {self.BendStrong_Wxeff :.3f} mm³, Effective section modulus\n')
+                        f'{self.space3}Wxeff : {self.BendStrong_Wxeff :.3f} mm³, Effective section modulus\n'
+                        f'{self.space3}ygc : {self.BendStrong_ygc:.3f} mm.\n')
 
     def calcs_BendingWeakLip(self):
         # Design Stress
@@ -1415,15 +1416,15 @@ class SectionProp_U:
         # Distance from compression (top) flange
         top_bc = self.bb - top_bt
         # Stress ratio
-        ff = (top_bc - self.bb) / top_bc
+        ff = top_bt / top_bc
         top_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
         top_flange_lamp = Sec4.lamp(self.bb, self.tcore, top_flange_ksigma, scomed, True)
         top_flg_rho = Sec4.internal_element(top_flange_lamp, ff)
-        top_flg_beff = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[0]
-        top_flg_be1 = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[1]
-        top_flg_be2 = Sec4.Table4_1_beff(ff, self.aa, top_flg_rho)[2]
-        top_b1 = top_flg_be1
-        top_b2 = self.bb - (top_bc - top_flg_be2)
+        top_flg_beff = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[0]
+        top_flg_be1 = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[1]
+        top_flg_be2 = Sec4.Table4_2_beff(ff, self.bb, top_flg_rho)[2]
+        top_b1 = top_bt
+        top_b2 = top_flg_beff
         # ==============================================================================================================
         # Effective width of the bot flange
         # ==============================================================================================================
@@ -1432,15 +1433,15 @@ class SectionProp_U:
         # Distance from compression (top) flange
         bot_bc = self.bb - bot_bt
         # Stress ratio
-        ff = (bot_bc - self.bb) / bot_bc
+        ff = bot_bt / bot_bc
         bot_flange_ksigma = Sec4.Table4_2_ksigma(ff, True)
         bot_flange_lamp = Sec4.lamp(self.bb, self.tcore, bot_flange_ksigma, scomed, True)
         bot_flg_rho = Sec4.internal_element(bot_flange_lamp, ff)
-        bot_flg_beff = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[0]
-        bot_flg_be1 = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[1]
-        bot_flg_be2 = Sec4.Table4_1_beff(ff, self.aa, bot_flg_rho)[2]
-        bot_b1 = top_flg_be1
-        bot_b2 = self.bb - (bot_bc - top_flg_be2)
+        bot_flg_beff = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[0]
+        bot_flg_be1 = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[1]
+        bot_flg_be2 = Sec4.Table4_2_beff(ff, self.bb, bot_flg_rho)[2]
+        bot_b1 = bot_bt
+        bot_b2 = bot_flg_beff
         # ==============================================================================================================
         # Effective width of the web
         # ==============================================================================================================
@@ -1460,10 +1461,12 @@ class SectionProp_U:
         # Create a matrix contains the element data from bottom lip to top lip
         # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
         self.BendWeakLip_elementData2 = np.array(
-            [[1, bot_flg_beff, 0.0, 0.0, 0.0, self.t],
-             [2, 0.0, 0.0, 0.0, h1, self.t],
-             [3, 0.0, h2, 0.0, self.aa, self.t],
-             [4, top_flg_beff, self.aa, 0.0, self.aa, self.t]])
+            [[1, (bot_b1+bot_b2), 0.0, bot_b1, 0.0, self.t],
+             [2, bot_b1, 0.0, 0.0, 0.0, self.tcore],
+             [3, 0.0, 0.0, 0.0, h1, self.tcore],
+             [3, 0.0, self.aa-h2, 0.0, self.aa, self.tcore],
+             [4, 0.0, self.aa, top_b1, self.aa, self.tcore],
+             [5, top_b1, self.aa, (top_b1+top_b2),self.aa, self.tcore]])
 
         # Results
         self.BendWeakLip_Iyeff = intprop.calcProps(self.BendWeakLip_elementData2)[4]
@@ -1511,10 +1514,10 @@ class SectionProp_U:
         # Create a matrix contains the element data from bottom lip to top lip
         # 0 id , 1 inodeX, 2 inodeY, 3 jnodeX, 4 JnodeY, 5 thickness
         self.BendWeakWeb_elementData2 = np.array(
-            [[1, bot_flg_be2, 0.0, 0.0, 0.0, self.tcore],
-             [2, 0.0, 0.0, 0.0, h1, self.tcore],
-             [3, 0.0, h2, 0.0, self.aa, self.tcore],
-             [4, top_flg_be2, self.aa, 0.0, self.aa, self.tcore]])
+            [[1, self.bb, 0.0, self.bb - bot_flg_be2, 0.0, self.tcore],
+             [2, 0.0, 0.0, 0.0, h2, self.tcore],
+             [3, 0.0, self.aa - h1, 0.0, self.aa, self.tcore],
+             [4, self.bb, self.aa, self.bb - top_flg_be2, self.aa, self.tcore]])
 
         # Results
         self.BendWeakWeb_Iyeff = intprop.calcProps(self.BendWeakWeb_elementData2)[4]
@@ -1613,5 +1616,5 @@ class SectionProp_U:
 
 
 # Calculating the section properties
-#section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
-U_sec= SectionProp_U(90.0,50.0,1.0,1.6,350.0)
+# section = SectionProp_C(90.0, 45.0, 10.0, 1.2, 1.6, 350.0)
+U_sec = SectionProp_U(200.0, 50.0, 1.2, 1.6, 350.0)
